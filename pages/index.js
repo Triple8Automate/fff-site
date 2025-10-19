@@ -1,105 +1,137 @@
-import fs from "fs";
-import path from "path";
 import Head from "next/head";
-import Script from "next/script";
+import { useRouter } from "next/router";
 
 export async function getServerSideProps() {
-  const htmlPath = path.join(process.cwd(), "public", "index.html");
-  const full = fs.readFileSync(htmlPath, "utf-8");
-  // extract only <body> so we can control CSS/JS loading
-  const match = full.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-  const body = match ? match[1] : full;
-  return { props: { body } };
+  return { props: {} };
 }
 
-export default function Home({ body }) {
+export default function Home() {
+  const router = useRouter();
+
   return (
     <>
       <Head>
-        {/* SEO (edit as you like) */}
-        <title>Fighting Fucking Fitness — Forbidden Science</title>
+        <title>Fighting Fucking Fitness — Research Archive</title>
         <meta
           name="description"
-          content="1,200+ peer-reviewed studies distilled into protocols that improve energy, libido, and performance."
+          content="1,200+ peer-reviewed studies on sex, power, and peak performance. Access the research they don't want you to see."
         />
         <link rel="canonical" href="https://fff-site.vercel.app/" />
-        <meta property="og:title" content="The Forbidden Science" />
+        <meta property="og:title" content="Fighting Fucking Fitness" />
         <meta
           property="og:description"
           content="We read the research. We test the protocols. We share what actually works."
         />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://fff-site.vercel.app/" />
-
-        {/* Manus CSS from /public */}
-        <link rel="stylesheet" href="/index-3C0zujvJ.css" />
       </Head>
 
-      {/* Render Manus HTML */}
-      <div dangerouslySetInnerHTML={{ __html: body }} />
+      <main className="gate-container">
+        <h1>Fighting Fucking Fitness</h1>
+        <p className="subtitle">
+          1,200+ peer-reviewed studies on sex, power, and peak performance
+        </p>
+        <p className="description">
+          We read the research they ignore. We test the protocols they suppress.
+          We share what actually works.
+        </p>
 
-      {/* Manus JS from /public (runs on client) */}
-      <Script src="/index-Ddi3IMu4.js" strategy="afterInteractive" />
+        <button
+          onClick={() => router.push("/articles")}
+          className="cta-button"
+        >
+          Access the Research Archive →
+        </button>
 
-      {/* Robust wiring for CTAs + header links (match by text) */}
-      <Script id="wire-cta" strategy="afterInteractive">
-        {`
-          function byText(roots, targets){
-            const list = Array.from(roots.querySelectorAll('a,button'));
-            const found = {};
-            list.forEach(el => {
-              const t = (el.textContent || '').trim().toLowerCase();
-              targets.forEach(([key, substr]) => {
-                if (t.includes(substr) && !found[key]) found[key] = el;
-              });
-            });
-            return found;
+        <div className="gate-disclaimer">
+          Enter your email to unlock full access to our research database
+        </div>
+      </main>
+
+      <style jsx>{`
+        .gate-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
+          padding: 2rem;
+          text-align: center;
+          background: #0b0b0f;
+          color: #e5e7eb;
+        }
+
+        h1 {
+          font-size: clamp(2.5rem, 5vw, 4rem);
+          font-weight: 700;
+          margin-bottom: 1rem;
+          background: linear-gradient(90deg, #a855f7, #3b82f6);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+          font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+          color: #c7d2fe;
+          margin-bottom: 1.5rem;
+          max-width: 700px;
+          font-weight: 500;
+        }
+
+        .description {
+          font-size: clamp(1rem, 2vw, 1.15rem);
+          color: #9aa3b2;
+          margin-bottom: 3rem;
+          max-width: 600px;
+          line-height: 1.6;
+        }
+
+        .cta-button {
+          background: linear-gradient(90deg, #a855f7, #3b82f6);
+          border: none;
+          color: white;
+          border-radius: 12px;
+          padding: 1.1rem 2.5rem;
+          font-weight: 600;
+          cursor: pointer;
+          font-size: 1.15rem;
+          transition: opacity 0.2s, transform 0.1s;
+          box-shadow: 0 10px 30px rgba(168, 85, 247, 0.3);
+        }
+
+        .cta-button:hover {
+          opacity: 0.9;
+          transform: translateY(-2px);
+          box-shadow: 0 15px 40px rgba(168, 85, 247, 0.4);
+        }
+
+        .cta-button:active {
+          transform: translateY(0);
+        }
+
+        .gate-disclaimer {
+          color: #6b7280;
+          font-size: 0.9rem;
+          margin-top: 2rem;
+          max-width: 500px;
+        }
+
+        @media (max-width: 768px) {
+          .gate-container {
+            padding: 1.5rem 1rem;
           }
 
-          function route(el, href){
-            if(!el) return;
-            el.addEventListener('click', (e) => {
-              // don't hijack if it's already a real link to somewhere else
-              const isAnchor = el.tagName === 'A' && el.getAttribute('href') && el.getAttribute('href') !== '#';
-              if (isAnchor) return;
-              e.preventDefault();
-              window.location.href = href;
-            });
+          .cta-button {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            width: 100%;
+            max-width: 350px;
           }
-
-          function wire(){
-            const targets = [
-              ['explore', 'explore the research'],
-              ['browse',  'browse protocols'],
-              ['getResearch', 'get the research'],
-              ['getWeekly', 'get weekly research'],
-              // header items (optional):
-              ['navResearch', 'research'],
-              ['navProtocols','protocols'],
-              ['navTopics',   'topics'],
-              ['navGetStarted','get started']
-            ];
-            const found = byText(document, targets);
-
-            route(found.explore, '/articles');
-            route(found.browse,  '/protocols');
-            route(found.getResearch, '/articles');
-            route(found.getWeekly, '/articles');
-
-            // header routes (adjust if you want different URLs)
-            route(found.navResearch,  '/articles');
-            route(found.navProtocols, '/protocols');
-            route(found.navTopics,    '/topics');     // create this page when ready
-            route(found.navGetStarted,'/get-started'); // create this page when ready
-          }
-
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', wire, { once: true });
-          } else {
-            wire();
-          }
-        `}
-      </Script>
+        }
+      `}</style>
     </>
   );
 }
+
