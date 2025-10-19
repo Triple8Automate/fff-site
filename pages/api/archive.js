@@ -1,85 +1,82 @@
 // pages/api/archive.js
-
-const AIRTABLE_URL = (table, base) =>
-  `https://api.airtable.com/v0/${base}/${encodeURIComponent(table)}`;
-
-function hasGate(req) {
-  const c = req.headers.cookie || "";
-  return /(?:^|;\s*)fff_granted=1(?:;|$)/.test(c);
-}
-
 export default async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  if (!hasGate(req)) return res.status(401).json({ error: "Gate required" });
-
-  const token  = process.env.AIRTABLE_TOKEN;
-  const baseId = process.env.AIRTABLE_BASE_ID;
-  const table  = process.env.AIRTABLE_ARTICLES_TABLE || "Articles";
-  const view   = process.env.AIRTABLE_ARTICLES_VIEW || "";                  // optional: limit to a View
-  const publishField = process.env.AIRTABLE_ARTICLES_PUBLISH_FIELD || "";   // optional: e.g. "Published"
-
-  if (!token || !baseId || !table) {
-    return res.status(500).json({ error: "Missing Airtable env vars" });
-  }
-
   try {
-    const params = new URLSearchParams();
-    if (view) params.append("view", view);
-    if (publishField) params.append("filterByFormula", `{${publishField}}`);
+    // --- DO NOT run this on edge; stick to node runtime for req.cookies support
+    // If you had set: export const config = { runtime: 'edge' } remove it.
 
-    // We request only safe fields (no PDF columns)
-    [
-      "Title",
-      "Slug",
-      "Date",
-      "FFF Summary 1",
-      "FFF Summary 2",
-      "Article Abstract",
-      "Full Citation",
-      "DOI",
-      "URL"
-    ].forEach(f => params.append("fields[]", f));
+    // 1) Read the cookie safely
+    let granted = false;
 
-    params.append("sort[0][field]", "Date");
-    params.append("sort[0][direction]", "desc");
-    params.append("pageSize", "100");
+    // Next.js API routes normally populate req.cookies
+    if (req.cookies && req.cookies.fff_granted === '1') {
+      granted = true;
+    } else {
+      // Fallback: parse raw Cookie header
+      const raw = req.headers.cookie || '';
+      const map = Object.fromEntries(
+        raw.split(';').map(kv => kv.trim().split('=').map(decodeURIComponent)).filter(x => x.length === 2)
+      );
+      if (map.fff_granted === '1') granted = true;
+    }
 
-    let offset = null;
-    const items = [];
+    if (!granted) {
+      return res.status(401).json({ error: 'Gate required' });
+    }
 
-    do {
-      const url = `${AIRTABLE_URL(table, baseId)}?${params.toString()}${offset ? `&offset=${offset}` : ""}`;
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const j = await r.json();
-      if (!r.ok) return res.status(r.status).json({ error: "Airtable error", detail: j });
+    // 2) (Optional) Filter with Airtable envs if you added them
+    const baseId  = process.env.AIRTABLE_BASE_ID;
+    const token   = process.env.AIRTABLE_TOKEN;
+    const table   = process.env.ARTICLES_TABLE || 'Articles';
+    const view    = process.env.ARTICLES_VIEW || undefined; // e.g. 'Published'
+    const publishField = process.env.ARTICLES_PUBLISH_FIELD || undefined; // e.g. 'Publish'
 
-      for (const rec of j.records || []) {
-        const f = rec.fields || {};
-        const title = f["Title"] || `Untitled ${rec.id.slice(-4)}`;
-        const slug  =
-          f["Slug"] ||
-          title.toLowerCase().replace(/[^\w\s-]/g,"").trim().replace(/[\s_-]+/g,"-");
-        const date  = f["Date"] || rec.createdTime?.slice(0,10) || "";
+    // If you haven't wired Airtable yet for listing, return demo data so we can verify the gate:
+    if (!baseId || !token) {
+      return res.status(200).json({
+        items: [
+          { id: 'demo-1', slug: 'the-testosterone-trap', title: 'The Testosterone Trap', date: '2025-10-19', topic: 'Hormones' },
+          { id: 'demo-2', slug: 'dopamine-dominance',    title: 'Dopamine Dominance',    date: '2025-10-18', topic: 'Neuro'    },
+        ],
+      });
+    }
 
-        items.push({
-          id: rec.id,
-          title,
-          slug,
-          date,
-          fff1:     f["FFF Summary 1"] || "",
-          fff2:     f["FFF Summary 2"] || "",
-          abstract: f["Article Abstract"] || "",
-          citation: f["Full Citation"] || "",
-          doi:      f["DOI"] || "",
-          url:      f["URL"] || ""
-        });
-      }
+    // --- Real Airtable listing (optional; keep demo first while debugging)
+    const search = new URLSearchParams();
+    search.set('pageSize', '100');
+    if (view) search.set('view', view);
 
-      offset = j.offset;
-    } while (offset);
+    // Optional publish filter formula
+    let formula = '';
+    if (publishField) {
+      formula = `AND({${publishField}} = 1)`;
+      search.set('filterByFormula', formula);
+    }
+
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${search}`;
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const text = await r.text();
+    if (!r.ok) {
+      let detail; try { detail = JSON.parse(text); } catch { detail = text; }
+      return res.status(r.status).json({ error: 'Airtable error', status: r.status, detail });
+    }
+
+    const data = JSON.parse(text);
+    const items = (data.records || []).map(rec => {
+      const f = rec.fields || {};
+      return {
+        id: rec.id,
+        slug: f.slug || f.Slug || f.slugify || '',
+        title: f.title || f.Title || '',
+        date: f.date || f.Date || '',
+        topic: f.topic || f.Topic || '',
+      };
+    });
 
     return res.status(200).json({ items });
   } catch (e) {
-    return res.status(500).json({ error: "Server error", detail: String(e).slice(0,800) });
+    return res.status(500).json({ error: 'Server error', detail: String(e).slice(0, 800) });
   }
 }
