@@ -64,13 +64,15 @@ export default function Home({ body }) {
               if (isAnchor) return;
               e.preventDefault();
               window.location.href = href;
-            }, { once: true });
+            });
           }
 
           function wire(){
             const targets = [
               ['explore', 'explore the research'],
               ['browse',  'browse protocols'],
+              ['getResearch', 'get the research'],
+              ['getWeekly', 'get weekly research'],
               // header items (optional):
               ['navResearch', 'research'],
               ['navProtocols','protocols'],
@@ -81,6 +83,8 @@ export default function Home({ body }) {
 
             route(found.explore, '/articles');
             route(found.browse,  '/protocols');
+            route(found.getResearch, '/articles');
+            route(found.getWeekly, '/articles');
 
             // header routes (adjust if you want different URLs)
             route(found.navResearch,  '/articles');
