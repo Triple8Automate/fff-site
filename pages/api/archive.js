@@ -17,8 +17,6 @@ export default async function handler(req, res) {
   const table  = process.env.AIRTABLE_ARTICLES_TABLE || "Articles";
   const view   = process.env.AIRTABLE_ARTICLES_VIEW || "";                  // optional: limit to a View
   const publishField = process.env.AIRTABLE_ARTICLES_PUBLISH_FIELD || "";   // optional: e.g. "Published"
-  // Optional columns you might have:
-  // Title, DOI, URL, PDF_URL, OpenAccess (checkbox), PDF Allowed (checkbox) etc.
 
   if (!token || !baseId || !table) {
     return res.status(500).json({ error: "Missing Airtable env vars" });
@@ -29,7 +27,7 @@ export default async function handler(req, res) {
     if (view) params.append("view", view);
     if (publishField) params.append("filterByFormula", `{${publishField}}`);
 
-    // Ask Airtable to include only the columns we need (not required, but faster)
+    // We request only safe fields (no PDF columns)
     [
       "Title",
       "Slug",
@@ -39,10 +37,7 @@ export default async function handler(req, res) {
       "Article Abstract",
       "Full Citation",
       "DOI",
-      "URL",
-      "PDF_URL",
-      "OpenAccess",
-      "PDF Allowed"
+      "URL"
     ].forEach(f => params.append("fields[]", f));
 
     params.append("sort[0][field]", "Date");
@@ -61,26 +56,22 @@ export default async function handler(req, res) {
       for (const rec of j.records || []) {
         const f = rec.fields || {};
         const title = f["Title"] || `Untitled ${rec.id.slice(-4)}`;
-        const slug  = f["Slug"] || title.toLowerCase().replace(/[^\w\s-]/g,"").trim().replace(/[\s_-]+/g,"-");
+        const slug  =
+          f["Slug"] ||
+          title.toLowerCase().replace(/[^\w\s-]/g,"").trim().replace(/[\s_-]+/g,"-");
         const date  = f["Date"] || rec.createdTime?.slice(0,10) || "";
-
-        // Only expose a PDF link if clearly allowed (OpenAccess or PDF Allowed checkbox)
-        const openAccess = !!f["OpenAccess"] || !!f["PDF Allowed"];
-        const pdfUrl = openAccess ? (f["PDF_URL"] || "") : "";
 
         items.push({
           id: rec.id,
           title,
           slug,
           date,
-          fff1: f["FFF Summary 1"] || "",
-          fff2: f["FFF Summary 2"] || "",
+          fff1:     f["FFF Summary 1"] || "",
+          fff2:     f["FFF Summary 2"] || "",
           abstract: f["Article Abstract"] || "",
           citation: f["Full Citation"] || "",
-          doi: f["DOI"] || "",
-          url: f["URL"] || "",
-          pdfUrl,            // will be empty if not allowed
-          openAccess
+          doi:      f["DOI"] || "",
+          url:      f["URL"] || ""
         });
       }
 
