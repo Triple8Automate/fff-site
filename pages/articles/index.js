@@ -1,7 +1,8 @@
 // pages/articles/index.js
 import { useEffect, useRef, useState } from "react";
 
-const CLUSTERS = [
+// Fallback list (used only if /api/clusters fails)
+const FALLBACK_CLUSTERS = [
   "Hormonal",
   "Neurology",
   "Psychology",
@@ -35,6 +36,8 @@ export default function ArticlesGate() {
   // Archive state
   const [q, setQ] = useState("");
   const [cluster, setCluster] = useState("");
+  const [clusters, setClusters] = useState(FALLBACK_CLUSTERS);
+
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [loadingList, setLoadingList] = useState(false);
@@ -52,6 +55,25 @@ export default function ArticlesGate() {
     } catch {}
     setChecked(true);
   }, []);
+
+  // Fetch distinct clusters once (after unlocked). Falls back silently if it fails.
+  useEffect(() => {
+    if (!granted) return;
+    let ignore = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/clusters");
+        if (!r.ok) return; // keep fallback
+        const j = await r.json();
+        if (!ignore && Array.isArray(j?.clusters) && j.clusters.length) {
+          setClusters(j.clusters);
+        }
+      } catch {}
+    })();
+    return () => {
+      ignore = true;
+    };
+  }, [granted]);
 
   // Fetch first page whenever filters change (debounced)
   useEffect(() => {
@@ -262,7 +284,7 @@ export default function ArticlesGate() {
             }}
           >
             <option value="">All clusters</option>
-            {CLUSTERS.map((c) => (
+            {clusters.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
