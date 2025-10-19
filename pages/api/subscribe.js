@@ -1,5 +1,4 @@
 // pages/api/subscribe.js
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -25,7 +24,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Missing Airtable env vars" });
     }
 
-    // Map EXACTLY to your Airtable column names; omit Timestamp (it's read-only)
+    // Map EXACTLY to your Airtable column names; omit Timestamp (read-only)
     const fields = {
       Email: email,
       Source: source,
@@ -33,10 +32,7 @@ export default async function handler(req, res) {
       UserAgent: ua,
     };
 
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(
-      table
-    )}`;
-
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`;
     const r = await fetch(url, {
       method: "POST",
       headers: {
@@ -48,26 +44,23 @@ export default async function handler(req, res) {
 
     const text = await r.text();
     if (!r.ok) {
-      let detail;
-      try { detail = JSON.parse(text); } catch { detail = text; }
+      let detail; try { detail = JSON.parse(text); } catch { detail = text; }
       return res
         .status(r.status)
         .json({ error: "Airtable error", status: r.status, detail });
     }
 
-    // 🔐 Gate cookie so the archive API/pages can verify access
-    // - Max-Age: 1 year
-    // - SameSite=Lax stops most CSRF without breaking normal nav
-    // - Secure works on HTTPS (Vercel is HTTPS)
+    // ✅ Set the gate cookie so middleware + APIs know you’re unlocked
+    // 1 year; HttpOnly; SameSite=Lax; Secure (works on vercel.app + your HTTPS domain)
     res.setHeader(
       "Set-Cookie",
-      "fff_granted=1; Path=/; Max-Age=31536000; SameSite=Lax; Secure"
+      [
+        `fff_granted=1; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure`,
+      ]
     );
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    return res
-      .status(500)
-      .json({ error: "Server error", detail: String(e).slice(0, 800) });
+    return res.status(500).json({ error: "Server error", detail: String(e).slice(0, 800) });
   }
 }
