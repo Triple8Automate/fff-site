@@ -1,12 +1,5 @@
 // pages/articles/index.js
-import { useEffect, useMemo, useRef, useState } from "react";
-
-// TODO: Replace with a small API that returns distinct cluster options,
-// or keep this array manually in sync with your Airtable single-select.
-const CLUSTERS = [
-  "Hormonal", "Neurology", "Psychology", "Sexuality", "Performance", "Nutrition",
-  "Training", "Sleep", "Longevity", "Recovery",
-];
+import { useEffect, useRef, useState } from "react";
 
 function getUTMSource() {
   if (typeof window === "undefined") return "archive-gate";
@@ -23,12 +16,15 @@ export default function ArticlesGate() {
   const [email, setEmail] = useState("");
   const [granted, setGranted] = useState(false);
   const [checked, setChecked] = useState(false);
+
+  // subscribe state
   const [loadingSub, setLoadingSub] = useState(false);
   const [subErr, setSubErr] = useState("");
 
-  // Archive state
+  // archive query state
   const [q, setQ] = useState("");
   const [cluster, setCluster] = useState("");
+  const [allClusters, setAllClusters] = useState([]); // FULL taxonomy from API
   const [items, setItems] = useState([]);
   const [cursor, setCursor] = useState(null);
   const [loadingList, setLoadingList] = useState(false);
@@ -36,7 +32,7 @@ export default function ArticlesGate() {
 
   const debounceRef = useRef(null);
 
-  // Check if already unlocked
+  // If already unlocked (client-only)
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("fffEmail");
@@ -48,11 +44,23 @@ export default function ArticlesGate() {
     setChecked(true);
   }, []);
 
+  // Load FULL cluster list one time
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/archive?allClusters=1");
+        const j = await r.json();
+        if (r.ok) setAllClusters(j.clusters || []);
+      } catch {
+        setAllClusters([]); // silent fallback
+      }
+    })();
+  }, []);
+
   // Fetch first page whenever filters change
   useEffect(() => {
     if (!granted) return;
 
-    // debounce typing
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       (async () => {
@@ -204,6 +212,102 @@ export default function ArticlesGate() {
           />
           <select
             value={cluster}
+            onChange={(e) => { setCluster(e.target.value); setCursor(null); }}
+            style={{
+              padding: "0.7rem 0.9rem", borderRadius: 8, border: "1px solid #2a2a2a",
+              background: "#0f0f14", color: "#fff",
+            }}
+          >
+            <option value="">All clusters</option>
+            {allClusters.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {listErr && <div style={{ color: "#fca5a5", marginBottom: 16 }}>{listErr}</div>}
+        {loadingList && items.length === 0 && <div>Loading…</div>}
+        {!loadingList && items.length === 0 && !listErr && <div>No results.</div>}
+
+        <ul style={{ lineHeight: 1.9, paddingLeft: 0, listStyle: "none" }}>
+          {items.map((a) => {
+            const href = a.url || (a.slug ? `/articles/${a.slug}` : "");
+            const isExternal = href.startsWith?.("http");
+            const clusterText = Array.isArray(a.cluster) ? a.cluster.join(", ") : (a.cluster || "");
+            return (
+              <li key={a.id} style={{ marginBottom: 6 }}>
+                {href ? (
+                  <a
+                    href={href}
+                    {...(isExternal ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                    style={{ textDecoration: "underline", color: "#a5b4fc" }}
+                  >
+                    {a.title || a.slug || "Untitled"}
+                  </a>
+                ) : (
+                  <span style={{ opacity: 0.7 }}>{a.title || a.slug || "Untitled"} (no link)</span>
+                )}
+                <span style={{ opacity: 0.65 }}>
+                  {a.date ? ` — ${a.date}` : ""} {clusterText ? `· ${clusterText}` : ""}
+                </span>
+                {a.abstract ? (
+                  <div style={{ opacity: 0.7, fontSize: 13, marginTop: 2, maxWidth: 900 }}>
+                    {a.abstract.length > 220 ? a.abstract.slice(0, 220) + "…" : a.abstract}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>// pages/articles/index.js
+            required
+            style={{
+              padding: "0.8rem 1rem", borderRadius: 6, border: "1px solid #333", width: 280,
+              marginRight: 8, background: "#111", color: "#fff",
+            }}
+          />
+          <button
+            type="submit"
+            disabled={loadingSub}
+            style={{
+              background: "linear-gradient(90deg,#a855f7,#3b82f6)",
+              border: "none", padding: "0.8rem 1.2rem", borderRadius: 6, color: "#fff",
+              cursor: "pointer", opacity: loadingSub ? 0.7 : 1,
+            }}
+          >
+            {loadingSub ? "Unlocking…" : "Unlock"}
+          </button>
+        </form>
+        {subErr && <div style={{ color: "#fca5a5", marginTop: 10 }}>{subErr}</div>}
+        <div style={{ opacity: 0.6, fontSize: 12, marginTop: 12 }}>
+          We’ll occasionally send research highlights. Unsubscribe anytime.
+        </div>
+      </main>
+    );
+  }
+
+  // ──────────────────────
+  // Unlocked view
+  // ──────────────────────
+  return (
+    <main style={{ minHeight: "100vh", padding: "2rem 1rem", color: "#fff", background: "#0b0b0f" }}>
+      <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+        <h1 style={{ marginBottom: 8 }}>Research Archive</h1>
+        <p style={{ opacity: 0.8, marginBottom: 24 }}>Welcome{email ? `, ${email}` : ""}.</p>
+
+        {/* Search + Cluster filter */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 220px", gap: 12, marginBottom: 16,
+        }}>
+          <input
+            type="search"
+            placeholder="Search title, abstract, citation…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{
+              padding: "0.7rem 0.9rem", borderRadius: 8, border: "1px solid #2a2a2a",
+              background: "#0f0f14", color: "#fff",
+            }}
+          />
+          <select
+            value={cluster}
             onChange={(e) => setCluster(e.target.value)}
             style={{
               padding: "0.7rem 0.9rem", borderRadius: 8, border: "1px solid #2a2a2a",
@@ -232,22 +336,6 @@ export default function ArticlesGate() {
                     style={{ textDecoration: "underline", color: "#a5b4fc" }}
                   >
                     {a.title || a.slug || "Untitled"}
-                  </a>
-                ) : (
-                  <span style={{ opacity: 0.7 }}>{a.title || a.slug || "Untitled"} (no link)</span>
-                )}
-                <span style={{ opacity: 0.65 }}>
-                  {a.date ? ` — ${a.date}` : ""} {a.cluster ? `· ${a.cluster}` : ""}
-                </span>
-                {a.abstract ? (
-                  <div style={{ opacity: 0.7, fontSize: 13, marginTop: 2, maxWidth: 900 }}>
-                    {a.abstract.length > 220 ? a.abstract.slice(0, 220) + "…" : a.abstract}
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
 
         {/* Load more */}
         {cursor && (
