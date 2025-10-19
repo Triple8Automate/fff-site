@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-// Styles are imported globally in pages/_app.js:  import "../styles/article.css";
 import { getReadingList, isSaved, toggleSave } from "../../lib/readingList";
 
 export default function ArticleDetail() {
@@ -14,9 +13,9 @@ export default function ArticleDetail() {
   const [item, setItem] = useState(null);
   const [saved, setSaved] = useState(false);
 
+  // fetch the article
   useEffect(() => {
     if (!id) return;
-
     (async () => {
       setLoading(true);
       setErr("");
@@ -25,9 +24,7 @@ export default function ArticleDetail() {
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
         setItem(j);
-        try {
-          setSaved(isSaved(j.id));
-        } catch {}
+        try { setSaved(isSaved(j.id)); } catch {}
       } catch (e) {
         setErr(e.message || "Something went wrong.");
       } finally {
@@ -47,183 +44,81 @@ export default function ArticleDetail() {
     setSaved(now);
   }
 
-  // ---------- Export helpers ----------
-  function download(filename, content, mime = "text/plain;charset=utf-8") {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  function toCSV(a) {
-    // Minimal, readable export; doubles quotes escaped for CSV
-    const q = (v = "") =>
-      `"${String(v ?? "").replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
-
-    const headers = [
-      "RecordID",
-      "Title",
-      "Cluster",
-      "Date",
-      "Abstract",
-      "FFF Summary 1",
-      "FFF Summary 2",
-      "FFF Summary 3",
-      "FFF Summary 4",
-      "Full citation",
-    ].join(",");
-
-    const row = [
-      q(a.id),
-      q(a.title),
-      q(a.cluster),
-      q(a.date),
-      q(a.abstract),
-      q(a.s1),
-      q(a.s2),
-      q(a.s3),
-      q(a.s4),
-      q(a.citation),
-    ].join(",");
-
-    return headers + "\n" + row + "\n";
-  }
-
-  function slugify(s = "") {
-    return s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40);
-  }
-
-  function yearFromDate(d) {
-    try {
-      const y = new Date(d).getFullYear();
-      return Number.isFinite(y) ? y : "";
-    } catch {
-      return "";
-    }
-  }
-
-  function toBibTeX(a) {
-    // We don’t have structured authors/journal; export a safe @misc
-    const key =
-      (slugify(a.title) || "fff-article") +
-      (yearFromDate(a.date) ? `-${yearFromDate(a.date)}` : "");
-    const lines = [
-      `@misc{${key || `fff-${a.id}`},`,
-      a.title ? `  title = {${a.title}},` : null,
-      yearFromDate(a.date) ? `  year = {${yearFromDate(a.date)}},` : null,
-      a.cluster ? `  note = {Cluster: ${a.cluster}},` : null,
-      a.abstract ? `  howpublished = {Abstract available},` : null,
-      // If you later decide URLs are ok, add:  url = {...},
-      `  publisher = {FFF Research Archive}`,
-      `}`,
-    ].filter(Boolean);
-
-    return lines.join("\n") + "\n";
-  }
-  // ---------- End export helpers ----------
-
   return (
-    <main className="article-shell">
-      <div className="article-wrap">
-        <div className="article-top">
-          <Link href="/articles" className="back-link">
+    <main style={{ minHeight: "100vh", padding: "2rem 1rem", color: "#fff", background: "#0b0b0f" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center" }}>
+          <Link href="/articles" style={{ color: "#a5b4fc", textDecoration: "underline" }}>
             ← Back to archive
+          </Link>
+          <Link href="/reading-list" style={{ color: "#a5b4fc", textDecoration: "underline" }}>
+            Reading list
           </Link>
         </div>
 
         {loading && <div>Loading…</div>}
-        {err && <div className="error">{err}</div>}
+        {err && <div style={{ color: "#fca5a5" }}>{err}</div>}
 
         {item && !loading && !err && (
           <>
             {/* Title */}
-            <h1 className="article-title">{item.title || "Untitled"}</h1>
+            <h1 style={{ marginBottom: 8 }}>{item.title || "Untitled"}</h1>
 
-            {/* Meta line */}
-            <div className="article-meta">
+            {/* Meta */}
+            <div style={{ opacity: 0.75, marginBottom: 16 }}>
               {item.cluster ? item.cluster : null}
               {item.date ? (item.cluster ? ` · ${item.date}` : item.date) : ""}
             </div>
 
-            {/* Action row */}
-            <div className="action-row">
-              <button
-                className={`btn ${saved ? "secondary" : ""}`}
-                onClick={onSave}
-              >
-                {saved ? "Saved ✓" : "Save to reading list"}
-              </button>
-
-              <div className="spacer" />
-
-              <button
-                className="btn ghost"
-                onClick={() =>
-                  download(
-                    `fff-${item.id}.bib`,
-                    toBibTeX(item),
-                    "text/x-bibtex;charset=utf-8"
-                  )
-                }
-              >
-                Export BibTeX
-              </button>
-              <button
-                className="btn ghost"
-                onClick={() =>
-                  download(
-                    `fff-${item.id}.csv`,
-                    toCSV(item),
-                    "text/csv;charset=utf-8"
-                  )
-                }
-              >
-                Export CSV
-              </button>
-            </div>
+            {/* Save button */}
+            <button
+              onClick={onSave}
+              style={{
+                marginBottom: 20,
+                background: saved ? "#1f2937" : "linear-gradient(90deg,#a855f7,#3b82f6)",
+                border: "none",
+                padding: "0.6rem 0.95rem",
+                borderRadius: 8,
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              {saved ? "Saved ✓" : "Save to reading list"}
+            </button>
 
             {/* Abstract */}
             {item.abstract && (
               <Section title="Abstract">
-                <div className="pre-wrap">{item.abstract}</div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.abstract}</div>
               </Section>
             )}
 
             {/* FFF Summaries 1–4 */}
             {item.s1 && (
               <Section title="FFF Summary 1">
-                <div className="pre-wrap">{item.s1}</div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s1}</div>
               </Section>
             )}
             {item.s2 && (
               <Section title="FFF Summary 2">
-                <div className="pre-wrap">{item.s2}</div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s2}</div>
               </Section>
             )}
             {item.s3 && (
               <Section title="FFF Summary 3">
-                <div className="pre-wrap">{item.s3}</div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s3}</div>
               </Section>
             )}
             {item.s4 && (
               <Section title="FFF Summary 4">
-                <div className="pre-wrap">{item.s4}</div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s4}</div>
               </Section>
             )}
 
             {/* Full citation */}
             {item.citation && (
               <Section title="Full citation">
-                <div className="pre-wrap">{item.citation}</div>
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.citation}</div>
               </Section>
             )}
           </>
@@ -235,9 +130,9 @@ export default function ArticleDetail() {
 
 function Section({ title, children }) {
   return (
-    <section className="article-sec">
-      <h3 className="article-sec-title">{title}</h3>
-      <div className="article-sec-body">{children}</div>
+    <section style={{ margin: "22px 0" }}>
+      <h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>{title}</h3>
+      <div style={{ opacity: 0.95 }}>{children}</div>
     </section>
   );
 }
