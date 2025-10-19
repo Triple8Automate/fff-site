@@ -1,5 +1,5 @@
 // pages/articles/index.js
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 function getUTMSource() {
   if (typeof window === "undefined") return "archive-gate";
