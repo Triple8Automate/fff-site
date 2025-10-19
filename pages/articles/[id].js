@@ -28,7 +28,9 @@ export default function ArticleDetail() {
         const j = await r.json();
         if (!r.ok) throw new Error(j?.error || "Failed to load");
         setItem(j);
-        try { setSaved(isSaved(j.id)); } catch {}
+        try {
+          setSaved(isSaved(j.id));
+        } catch {}
       } catch (e) {
         setErr(e.message || "Something went wrong.");
       } finally {
@@ -48,85 +50,106 @@ export default function ArticleDetail() {
     setSaved(now);
   }
 
-  return (
-    <main style={{ minHeight: "100vh", padding: "2rem 1rem", color: "#fff", background: "#0b0b0f" }}>
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
-        <div style={{ marginBottom: 16, display: "flex", gap: 12, alignItems: "center" }}>
-          <Link href="/articles" style={{ color: "#a5b4fc", textDecoration: "underline" }}>
-            ← Back to archive
-          </Link>
-          <Link href="/reading-list" style={{ color: "#a5b4fc", textDecoration: "underline" }}>
-            Reading list
-          </Link>
+  if (loading) {
+    return (
+      <main className="article-wrap">
+        <div className="loading">Loading article...</div>
+      </main>
+    );
+  }
+
+  if (err) {
+    return (
+      <main className="article-wrap">
+        <div className="breadcrumb">
+          <Link href="/articles">← Back to archive</Link>
         </div>
+        <div className="error">{err}</div>
+      </main>
+    );
+  }
 
-        {loading && <div>Loading…</div>}
-        {err && <div style={{ color: "#fca5a5" }}>{err}</div>}
+  if (!item) {
+    return (
+      <main className="article-wrap">
+        <div className="breadcrumb">
+          <Link href="/articles">← Back to archive</Link>
+        </div>
+        <div className="error">Article not found</div>
+      </main>
+    );
+  }
 
-        {item && !loading && !err && (
-          <>
-            {/* Title */}
-            <h1 style={{ marginBottom: 8 }}>{item.title || "Untitled"}</h1>
+  return (
+    <main className="article-wrap">
+      {/* Breadcrumb Navigation */}
+      <div className="breadcrumb">
+        <Link href="/articles">← Back to archive</Link>
+        <Link href="/reading-list">Reading list</Link>
+      </div>
 
-            {/* Meta */}
-            <div style={{ opacity: 0.75, marginBottom: 16 }}>
-              {item.cluster ? item.cluster : null}
-              {item.date ? (item.cluster ? ` · ${item.date}` : item.date) : ""}
-            </div>
+      {/* Article Title */}
+      <h1>{item.title || "Untitled"}</h1>
 
-            {/* Save button */}
-            <button
-              onClick={onSave}
-              style={{
-                marginBottom: 20,
-                background: saved ? "#1f2937" : "linear-gradient(90deg,#a855f7,#3b82f6)",
-                border: "none",
-                padding: "0.6rem 0.95rem",
-                borderRadius: 8,
-                color: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              {saved ? "Saved ✓" : "Save to reading list"}
-            </button>
+      {/* Meta Information */}
+      <div className="meta">
+        {item.cluster && <span className="badge">{item.cluster}</span>}
+        {item.date && <span>{item.date}</span>}
+      </div>
 
-            {/* Abstract */}
-            {item.abstract && (
-              <Section title="Abstract">
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.abstract}</div>
-              </Section>
-            )}
+      {/* Action Buttons */}
+      <div className="actions">
+        <button onClick={onSave} className={saved ? "btn secondary" : "btn"}>
+          {saved ? "✓ Saved to reading list" : "Save to reading list"}
+        </button>
+      </div>
 
-            {/* FFF Summaries 1–4 */}
-            {item.s1 && (
-              <Section title="FFF Summary 1">
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s1}</div>
-              </Section>
-            )}
-            {item.s2 && (
-              <Section title="FFF Summary 2">
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s2}</div>
-              </Section>
-            )}
-            {item.s3 && (
-              <Section title="FFF Summary 3">
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s3}</div>
-              </Section>
-            )}
-            {item.s4 && (
-              <Section title="FFF Summary 4">
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s4}</div>
-              </Section>
-            )}
+      {/* Abstract */}
+      {item.abstract && (
+        <Section title="Abstract">
+          <div className="content-text">{item.abstract}</div>
+        </Section>
+      )}
 
-            {/* Full citation */}
-            {item.citation && (
-              <Section title="Full citation">
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.citation}</div>
-              </Section>
-            )}
-          </>
-        )}
+      {/* FFF Summaries 1–4 */}
+      {item.s1 && (
+        <Section title="FFF Summary 1">
+          <div className="content-text">{item.s1}</div>
+        </Section>
+      )}
+
+      {item.s2 && (
+        <Section title="FFF Summary 2">
+          <div className="content-text">{item.s2}</div>
+        </Section>
+      )}
+
+      {item.s3 && (
+        <Section title="FFF Summary 3">
+          <div className="content-text">{item.s3}</div>
+        </Section>
+      )}
+
+      {item.s4 && (
+        <Section title="FFF Summary 4">
+          <div className="content-text">{item.s4}</div>
+        </Section>
+      )}
+
+      {/* Full Citation */}
+      {item.citation && (
+        <Section title="Full Citation">
+          <div className="content-text small">{item.citation}</div>
+        </Section>
+      )}
+
+      {/* Separator before footer */}
+      <hr className="sep" />
+
+      {/* Footer Navigation */}
+      <div className="breadcrumb">
+        <Link href="/articles">← Back to archive</Link>
+        <Link href="/reading-list">View reading list</Link>
       </div>
     </main>
   );
@@ -134,9 +157,10 @@ export default function ArticleDetail() {
 
 function Section({ title, children }) {
   return (
-    <section style={{ margin: "22px 0" }}>
-      <h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>{title}</h3>
-      <div style={{ opacity: 0.95 }}>{children}</div>
+    <section className="section">
+      <h3>{title}</h3>
+      <div className="panel">{children}</div>
     </section>
   );
 }
+

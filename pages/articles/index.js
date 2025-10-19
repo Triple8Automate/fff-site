@@ -138,67 +138,107 @@ export default function ArticlesGate() {
     }
   }
 
+  // Email Gate
   if (!granted) {
     return (
-      <main style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:"2rem",background:"#000",color:"#fff",textAlign:"center"}}>
+      <main className="gate-container">
         <h1>Access the Forbidden Archive</h1>
-        <p style={{ maxWidth: 520, opacity: 0.8 }}>
-          1,200+ peer-reviewed studies distilled into practical protocols. Enter your email to unlock the research archive.
+        <p>
+          1,200+ peer-reviewed studies distilled into practical protocols. Enter
+          your email to unlock the research archive.
         </p>
-        <form onSubmit={handleSubmit} style={{ marginTop: "1.5rem" }}>
-          <input type="text" name="company" style={{ display: "none" }} tabIndex={-1} autoComplete="off" />
-          <input type="email" placeholder="you@example.com" value={email} onChange={(e)=>setEmail(e.target.value)} required
-            style={{ padding:"0.8rem 1rem", borderRadius:6, border:"1px solid #333", width:280, marginRight:8, background:"#111", color:"#fff" }}/>
-          <button type="submit" disabled={loadingSub}
-            style={{ background:"linear-gradient(90deg,#a855f7,#3b82f6)", border:"none", padding:"0.8rem 1.2rem", borderRadius:6, color:"#fff", cursor:"pointer", opacity:loadingSub?0.7:1 }}>
-            {loadingSub ? "Unlocking…" : "Unlock"}
+        <form onSubmit={handleSubmit} className="gate-form">
+          <input
+            type="text"
+            name="company"
+            style={{ display: "none" }}
+            tabIndex={-1}
+            autoComplete="off"
+          />
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="gate-input"
+          />
+          <button type="submit" disabled={loadingSub} className="gate-submit">
+            {loadingSub ? "Unlocking…" : "Unlock Archive"}
           </button>
         </form>
-        {subErr && <div style={{ color:"#fca5a5", marginTop:10 }}>{subErr}</div>}
-        <div style={{ opacity:0.6, fontSize:12, marginTop:12 }}>We’ll occasionally send research highlights. Unsubscribe anytime.</div>
+        {subErr && <div className="error-state">{subErr}</div>}
+        <div className="gate-disclaimer">
+          We'll occasionally send research highlights. Unsubscribe anytime.
+        </div>
       </main>
     );
   }
 
+  // Archive List
   return (
-    <main style={{ minHeight:"100vh", padding:"2rem 1rem", color:"#fff", background:"#0b0b0f" }}>
-      <div style={{ maxWidth:1000, margin:"0 auto" }}>
-        <h1 style={{ marginBottom: 8 }}>Research Archive</h1>
-        <p style={{ opacity: 0.8, marginBottom: 24 }}>Welcome{email ? `, ${email}` : ""}.</p>
+    <main className="archive-container">
+      <div className="archive-header">
+        <h1>Research Archive</h1>
+        <p>Welcome{email ? `, ${email}` : ""}. Browse 1,200+ peer-reviewed studies.</p>
+      </div>
 
-        {/* Search + Cluster */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 220px", gap:12, marginBottom:16 }}>
-          <input type="search" placeholder="Search title, abstract, citation…" value={q} onChange={(e)=>setQ(e.target.value)}
-            style={{ padding:"0.7rem 0.9rem", borderRadius:8, border:"1px solid #2a2a2a", background:"#0f0f14", color:"#fff" }}/>
-          <select value={cluster} onChange={(e)=>setCluster(e.target.value)}
-            style={{ padding:"0.7rem 0.9rem", borderRadius:8, border:"1px solid #2a2a2a", background:"#0f0f14", color:"#fff" }}>
-            <option value="">All clusters</option>
-            {(clusters || []).map((c)=>(
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
+      {/* Search + Cluster Filter */}
+      <div className="controls">
+        <input
+          type="search"
+          placeholder="Search title, abstract, citation…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="search-input"
+        />
+        <select
+          value={cluster}
+          onChange={(e) => setCluster(e.target.value)}
+          className="filter-select"
+        >
+          <option value="">All clusters</option>
+          {(clusters || []).map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {listErr && <div style={{ color:"#fca5a5", marginBottom:16 }}>{listErr}</div>}
-        {loadingList && items.length === 0 && <div>Loading…</div>}
-        {!loadingList && items.length === 0 && !listErr && <div>No results.</div>}
+      {/* Error State */}
+      {listErr && <div className="error-state">{listErr}</div>}
 
-        <ul style={{ lineHeight:1.9, paddingLeft:0, listStyle:"none" }}>
-          {items.map((a)=>(
-            <li key={a.id} style={{ marginBottom:12 }}>
-              <a href={`/articles/${a.id}`} style={{ textDecoration:"underline", color:"#a5b4fc" }}>
+      {/* Loading State */}
+      {loadingList && items.length === 0 && (
+        <div className="loading-state">Loading articles...</div>
+      )}
+
+      {/* Empty State */}
+      {!loadingList && items.length === 0 && !listErr && (
+        <div className="empty-state">No articles found. Try adjusting your search.</div>
+      )}
+
+      {/* Article List */}
+      {items.length > 0 && (
+        <ul className="article-list">
+          {items.map((a) => (
+            <li key={a.id} className="article-item">
+              <a href={`/articles/${a.id}`} className="article-link">
                 {a.title || "Untitled"}
               </a>
-              <span style={{ opacity:0.65 }}>
-                {a.date ? ` — ${a.date}` : ""} {a.cluster ? `· ${a.cluster}` : ""}
-              </span>
+
+              <div className="article-meta">
+                {a.date ? `${a.date}` : ""}
+                {a.cluster ? ` · ${a.cluster}` : ""}
+              </div>
 
               {/* Show ALL summaries (truncated) if present */}
               {(a.summaries || []).length > 0 && (
-                <div style={{ marginTop: 6 }}>
+                <div className="article-summary">
                   {(a.summaries || []).map((s, i) => (
-                    <div key={i} style={{ opacity: 0.8, fontSize: 13, marginTop: 2, maxWidth: 900 }}>
-                      <strong>Summary {i + 1}:</strong>{" "}
+                    <div key={i} className="summary-item">
+                      <span className="summary-label">Summary {i + 1}:</span>{" "}
                       {s.length > 220 ? s.slice(0, 220) + "…" : s}
                     </div>
                   ))}
@@ -207,23 +247,30 @@ export default function ArticlesGate() {
 
               {/* Fallback to abstract preview if no summaries */}
               {!a.summaries?.length && a.abstract && (
-                <div style={{ opacity: 0.7, fontSize: 13, marginTop: 2, maxWidth: 900 }}>
-                  {a.abstract.length > 220 ? a.abstract.slice(0,220) + "…" : a.abstract}
+                <div className="article-summary">
+                  {a.abstract.length > 220
+                    ? a.abstract.slice(0, 220) + "…"
+                    : a.abstract}
                 </div>
               )}
             </li>
           ))}
         </ul>
+      )}
 
-        {cursor && (
-          <div style={{ marginTop:16 }}>
-            <button onClick={loadMore} disabled={loadingList}
-              style={{ background:"linear-gradient(90deg,#a855f7,#3b82f6)", border:"none", padding:"0.7rem 1.1rem", borderRadius:8, color:"#fff", cursor:"pointer", opacity:loadingList?0.7:1 }}>
-              {loadingList ? "Loading…" : "Load more"}
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Load More */}
+      {cursor && (
+        <div className="load-more">
+          <button
+            onClick={loadMore}
+            disabled={loadingList}
+            className="load-more-btn"
+          >
+            {loadingList ? "Loading…" : "Load more articles"}
+          </button>
+        </div>
+      )}
     </main>
   );
 }
+
