@@ -8,16 +8,6 @@ function hasGate(req) {
   return /(?:^|;\s*)fff_granted=1(?:;|$)/.test(c);
 }
 
-function toSlug(s) {
-  return String(s || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   if (!hasGate(req)) return res.status(401).json({ error: "Gate required" });
@@ -25,8 +15,10 @@ export default async function handler(req, res) {
   const token  = process.env.AIRTABLE_TOKEN;
   const baseId = process.env.AIRTABLE_BASE_ID;
   const table  = process.env.AIRTABLE_ARTICLES_TABLE || "Articles";
-  const view   = process.env.AIRTABLE_ARTICLES_VIEW || "";            // optional
-  const publishField = process.env.AIRTABLE_ARTICLES_PUBLISH_FIELD || ""; // e.g. "Published"
+  const view   = process.env.AIRTABLE_ARTICLES_VIEW || "";                  // optional: limit to a View
+  const publishField = process.env.AIRTABLE_ARTICLES_PUBLISH_FIELD || "";   // optional: e.g. "Published"
+  // Optional columns you might have:
+  // Title, DOI, URL, PDF_URL, OpenAccess (checkbox), PDF Allowed (checkbox) etc.
 
   if (!token || !baseId || !table) {
     return res.status(500).json({ error: "Missing Airtable env vars" });
@@ -35,18 +27,25 @@ export default async function handler(req, res) {
   try {
     const params = new URLSearchParams();
     if (view) params.append("view", view);
+    if (publishField) params.append("filterByFormula", `{${publishField}}`);
 
-    // If you set a publishField (checkbox), filter to only published rows
-    if (publishField) {
-      // In Airtable formulas, a checked checkbox is truthy just by referencing the field
-      params.append("filterByFormula", `{${publishField}}`);
-    }
+    // Ask Airtable to include only the columns we need (not required, but faster)
+    [
+      "Title",
+      "Slug",
+      "Date",
+      "FFF Summary 1",
+      "FFF Summary 2",
+      "Article Abstract",
+      "Full Citation",
+      "DOI",
+      "URL",
+      "PDF_URL",
+      "OpenAccess",
+      "PDF Allowed"
+    ].forEach(f => params.append("fields[]", f));
 
-    // Ask for a few likely fields up front (not required; we’ll still read whatever comes back)
-    ["Title","Slug","Date","Topic","Category","Tags","PublishedDate","URL"].forEach(
-      f => params.append("fields[]", f)
-    );
-    params.append("sort[0][field]", "Date"); // if it exists this will sort, otherwise Airtable ignores
+    params.append("sort[0][field]", "Date");
     params.append("sort[0][direction]", "desc");
     params.append("pageSize", "100");
 
@@ -61,37 +60,35 @@ export default async function handler(req, res) {
 
       for (const rec of j.records || []) {
         const f = rec.fields || {};
-        const title =
-          f.Title ?? f.title ?? f.Name ?? f.name ?? `Untitled ${rec.id.slice(-4)}`;
+        const title = f["Title"] || `Untitled ${rec.id.slice(-4)}`;
+        const slug  = f["Slug"] || title.toLowerCase().replace(/[^\w\s-]/g,"").trim().replace(/[\s_-]+/g,"-");
+        const date  = f["Date"] || rec.createdTime?.slice(0,10) || "";
 
-        let slug = f.Slug ?? f.slug ?? null;
-        if (!slug) slug = title ? toSlug(title) : rec.id;
-
-        const date =
-          f.Date ?? f.date ?? f.PublishedDate ?? f.publishedDate ?? rec.createdTime?.slice(0, 10) ?? "";
-
-        const topic =
-          f.Topic ?? f.topic ?? f.Category ?? (
-            Array.isArray(f.Tags) ? f.Tags[0] :
-            Array.isArray(f.tags) ? f.tags[0] : ""
-          );
-
-        const urlField = f.URL ?? f.Url ?? f.url ?? "";
+        // Only expose a PDF link if clearly allowed (OpenAccess or PDF Allowed checkbox)
+        const openAccess = !!f["OpenAccess"] || !!f["PDF Allowed"];
+        const pdfUrl = openAccess ? (f["PDF_URL"] || "") : "";
 
         items.push({
           id: rec.id,
           title,
           slug,
           date,
-          topic,
-          url: urlField,
+          fff1: f["FFF Summary 1"] || "",
+          fff2: f["FFF Summary 2"] || "",
+          abstract: f["Article Abstract"] || "",
+          citation: f["Full Citation"] || "",
+          doi: f["DOI"] || "",
+          url: f["URL"] || "",
+          pdfUrl,            // will be empty if not allowed
+          openAccess
         });
       }
+
       offset = j.offset;
     } while (offset);
 
     return res.status(200).json({ items });
   } catch (e) {
-    return res.status(500).json({ error: "Server error", detail: String(e).slice(0, 800) });
+    return res.status(500).json({ error: "Server error", detail: String(e).slice(0,800) });
   }
 }
