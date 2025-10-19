@@ -2,84 +2,80 @@
 export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
+  const token  = process.env.AIRTABLE_TOKEN;
+  const baseId = process.env.AIRTABLE_BASE_ID;
+  const table  = process.env.AIRTABLE_ARTICLES_TABLE || process.env.AIRTABLE_TABLE_NAME || "Articles";
+  if (!token || !baseId || !table) return res.status(500).json({ error: "Missing Airtable env vars" });
+
+  const { q = "", cluster = "", limit = "50", cursor = "" } = req.query;
+
+  // Field names (case-sensitive in Airtable)
+  const F_TITLE    = "Title";
+  const F_ABS      = "Abstract";
+  const F_CIT      = "Citation";
+  const F_DATE     = "Date";
+  const F_CLUSTER1 = "cluster"; // your new name
+  const F_CLUSTER2 = "Cluster"; // fallback if some records still use old name
+
+  // Build an Airtable formula that:
+  // - Optionally matches text against title/abstract/citation
+  // - Optionally matches cluster (works for single or multi select)
+  const parts = [];
+
+  if (q) {
+    // Search across three fields using LOWER + FIND
+    const safe = String(q).replace(/"/g, '\\"');
+    parts.push(
+      `OR(` +
+        `FIND(LOWER("${safe}"), LOWER({${F_TITLE}}&""))>0,` +
+        `FIND(LOWER("${safe}"), LOWER({${F_ABS}}&""))>0,` +
+        `FIND(LOWER("${safe}"), LOWER({${F_CIT}}&""))>0` +
+      `)`
+    );
+  }
+
+  if (cluster) {
+    const safeC = String(cluster).replace(/"/g, '\\"');
+    // Handle either field name, and either single or multi select
+    parts.push(
+      `OR(` +
+        `{${F_CLUSTER1}}="${safeC}",` +
+        `FIND("${safeC}", ARRAYJOIN({${F_CLUSTER1}}&""))>0,` +
+        `{${F_CLUSTER2}}="${safeC}",` +
+        `FIND("${safeC}", ARRAYJOIN({${F_CLUSTER2}}&""))>0` +
+      `)`
+    );
+  }
+
+  const formula = parts.length ? `AND(${parts.join(",")})` : "";
+  const params = new URLSearchParams();
+  if (formula) params.set("filterByFormula", formula);
+  params.set("pageSize", String(Math.min(Number(limit) || 50, 100)));
+  if (cursor) params.set("offset", cursor);
+
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${params.toString()}`;
+
   try {
-    const token  = process.env.AIRTABLE_TOKEN;
-    const baseId = process.env.AIRTABLE_BASE_ID;
-    const table  = process.env.AIRTABLE_ARTICLES_TABLE || "Articles";
-    const view   = process.env.AIRTABLE_ARTICLES_VIEW || ""; // optional
-
-    // Match these to your Airtable column names (override via env if different)
-    const F_TITLE    = process.env.AIRTABLE_ARTICLES_TITLE_FIELD    || "Title";
-    const F_ABS      = process.env.AIRTABLE_ARTICLES_ABSTRACT_FIELD || "Article Abstract";
-    const F_CIT      = process.env.AIRTABLE_ARTICLES_CITATION_FIELD || "Full Citation";
-    const F_SLUG     = process.env.AIRTABLE_ARTICLES_SLUG_FIELD     || "slug";
-    const F_DATE     = process.env.AIRTABLE_ARTICLES_DATE_FIELD     || "date";
-    const F_TOPIC    = process.env.AIRTABLE_ARTICLES_TOPIC_FIELD    || "Topic";
-    const F_CLUSTER  = process.env.AIRTABLE_ARTICLES_CLUSTER_FIELD  || "Cluster";
-
-    if (!token || !baseId || !table) {
-      return res.status(500).json({ error: "Missing Airtable env vars" });
-    }
-
-    const { q = "", cluster = "", cursor = "", limit = "50" } = req.query;
-    const pageSize = Math.max(1, Math.min(100, parseInt(String(limit), 10) || 50));
-
-    const esc = (s = "") => String(s).replace(/'/g, "\\'");
-
-    // Build filter formula only when needed
-    const parts = [];
-    if (q) {
-      const ql = esc(q.toLowerCase());
-      const orFields = [
-        `FIND('${ql}', LOWER({${F_TITLE}}))`,
-        `FIND('${ql}', LOWER({${F_ABS}}))`,
-        `FIND('${ql}', LOWER({${F_CIT}}))`,
-      ];
-      parts.push(`OR(${orFields.join(",")})`);
-    }
-    if (cluster) parts.push(`{${F_CLUSTER}} = '${esc(cluster)}'`);
-    const filterByFormula = parts.length ? `AND(${parts.join(",")})` : "";
-
-    const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
-    url.searchParams.set("pageSize", String(pageSize));
-    if (cursor) url.searchParams.set("offset", String(cursor));
-    if (filterByFormula) url.searchParams.set("filterByFormula", filterByFormula);
-    if (view) url.searchParams.set("view", view);
-
-    const r = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+    const r = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
     });
+    const j = await r.json();
+    if (!r.ok) return res.status(r.status).json({ error: "Airtable error", detail: j });
 
-    const text = await r.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = text; }
-
-    if (!r.ok) {
-      return res.status(r.status).json({ error: "Airtable error", status: r.status, detail: data });
-    }
-
-    const items = (data.records || []).map((rec) => {
+    const items = (j.records || []).map((rec) => {
       const f = rec.fields || {};
       return {
         id: rec.id,
-        title: f[F_TITLE] ?? "",
-        abstract: f[F_ABS] ?? "",
-        citation: f[F_CIT] ?? "",
-        slug: f[F_SLUG] ?? "",
-        date: f[F_DATE] ?? "",
-        topic: f[F_TOPIC] ?? "",
-        cluster: f[F_CLUSTER] ?? "",
+        title: f[F_TITLE] || "",
+        abstract: f[F_ABS] || "",
+        date: f[F_DATE] || "",
+        cluster: f[F_CLUSTER1] || f[F_CLUSTER2] || "",
       };
     });
 
-    return res.status(200).json({
-      items,
-      nextCursor: data.offset || null,
-    });
+    return res.status(200).json({ items, nextCursor: j.offset || null });
   } catch (e) {
-    return res.status(500).json({ error: "Server error", detail: String(e).slice(0, 800) });
+    return res.status(500).json({ error: "Server error", detail: String(e) });
   }
 }
