@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+// pages/articles/[id].js  (and keep your existing logic)
+import "../../styles/article.css";
+
 
 export default function ArticleDetail() {
   const router = useRouter();
