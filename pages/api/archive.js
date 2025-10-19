@@ -1,58 +1,83 @@
 // pages/api/archive.js
 export default async function handler(req, res) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
   try {
-    // --- DO NOT run this on edge; stick to node runtime for req.cookies support
-    // If you had set: export const config = { runtime: 'edge' } remove it.
+    const token  = process.env.AIRTABLE_TOKEN;
+    const baseId = process.env.AIRTABLE_BASE_ID;
+    const table  = process.env.AIRTABLE_ARTICLES_TABLE || process.env.AIRTABLE_TABLE_NAME; // fallback
+    const view   = process.env.AIRTABLE_ARTICLES_VIEW || ""; // optional
+    const publishField = process.env.AIRTABLE_ARTICLES_PUBLISH_FIELD || ""; // e.g. "Publish"
 
-    // 1) Read the cookie safely
-    let granted = false;
-
-    // Next.js API routes normally populate req.cookies
-    if (req.cookies && req.cookies.fff_granted === '1') {
-      granted = true;
-    } else {
-      // Fallback: parse raw Cookie header
-      const raw = req.headers.cookie || '';
-      const map = Object.fromEntries(
-        raw.split(';').map(kv => kv.trim().split('=').map(decodeURIComponent)).filter(x => x.length === 2)
-      );
-      if (map.fff_granted === '1') granted = true;
+    if (!token || !baseId || !table) {
+      return res.status(500).json({ error: "Missing Airtable env vars" });
     }
 
-    if (!granted) {
-      return res.status(401).json({ error: 'Gate required' });
-    }
+    const {
+      q = "",                 // search query
+      cluster = "",           // cluster/topic filter (exact match)
+      limit = "50",           // client can ask smaller page sizes (max 100 per Airtable)
+      cursor = "",            // Airtable "offset" for pagination
+    } = req.query;
 
-    // 2) (Optional) Filter with Airtable envs if you added them
-    const baseId  = process.env.AIRTABLE_BASE_ID;
-    const token   = process.env.AIRTABLE_TOKEN;
-    const table   = process.env.ARTICLES_TABLE || 'Articles';
-    const view    = process.env.ARTICLES_VIEW || undefined; // e.g. 'Published'
-    const publishField = process.env.ARTICLES_PUBLISH_FIELD || undefined; // e.g. 'Publish'
+    const size = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
 
-    // If you haven't wired Airtable yet for listing, return demo data so we can verify the gate:
-    if (!baseId || !token) {
-      return res.status(200).json({
-        items: [
-          { id: 'demo-1', slug: 'the-testosterone-trap', title: 'The Testosterone Trap', date: '2025-10-19', topic: 'Hormones' },
-          { id: 'demo-2', slug: 'dopamine-dominance',    title: 'Dopamine Dominance',    date: '2025-10-18', topic: 'Neuro'    },
-        ],
-      });
-    }
+    // Build filterByFormula
+    const terms = (q || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 5); // keep it sane
 
-    // --- Real Airtable listing (optional; keep demo first while debugging)
-    const search = new URLSearchParams();
-    search.set('pageSize', '100');
-    if (view) search.set('view', view);
+    // Fields we search across (match your Airtable field names)
+    const F = {
+      title: ["Title", "title"],
+      abstract: ["Abstract", "article abstract", "summary", "Summary"],
+      cluster: ["Cluster", "Topic", "Topics", "Category"],
+      author: ["Author", "Authors"],
+      citation: ["Citation", "Full Citation"],
+    };
 
-    // Optional publish filter formula
-    let formula = '';
-    if (publishField) {
-      formula = `AND({${publishField}} = 1)`;
-      search.set('filterByFormula', formula);
-    }
+    // Helper to formula-OR across fields for a single term
+    const orFindTerm = (term, fieldNames) =>
+      `OR(${fieldNames.map(fn =>
+        `FIND(LOWER("${escapeFormula(term)}"), LOWER({${fn}}))`
+      ).join(",")})`;
 
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${search}`;
+    // For each search term, we want it to appear in any field (OR),
+    // and all terms must be present overall (AND of those ORs).
+    const searchFormula =
+      terms.length === 0
+        ? ""
+        : `AND(${terms
+            .map(t =>
+              orFindTerm(t, [
+                ...F.title, ...F.abstract, ...F.cluster, ...F.author, ...F.citation,
+              ])
+            )
+            .join(",")})`;
+
+    // Cluster filter (exact match on any of the cluster-like fields)
+    const clusterFormula = cluster
+      ? `OR(${F.cluster.map(fn => `{${fn}} = "${escapeFormula(cluster)}"`).join(",")})`
+      : "";
+
+    // Publish filter (only when you provided a publish field)
+    const publishFormula = publishField
+      ? `{${publishField}}`
+      : "";
+
+    // Combine non-empty formula pieces with AND
+    const pieces = [publishFormula, searchFormula, clusterFormula].filter(Boolean);
+    const filterByFormula = pieces.length ? `AND(${pieces.join(",")})` : "";
+
+    const params = new URLSearchParams();
+    params.set("pageSize", String(size));
+    if (view) params.set("view", view);
+    if (filterByFormula) params.set("filterByFormula", filterByFormula);
+    if (cursor) params.set("offset", cursor);
+
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${params.toString()}`;
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -60,23 +85,35 @@ export default async function handler(req, res) {
     const text = await r.text();
     if (!r.ok) {
       let detail; try { detail = JSON.parse(text); } catch { detail = text; }
-      return res.status(r.status).json({ error: 'Airtable error', status: r.status, detail });
+      return res.status(r.status).json({ error: "Airtable error", status: r.status, detail });
     }
-
     const data = JSON.parse(text);
+
+    // Map fields exactly (add/rename to match your base)
     const items = (data.records || []).map(rec => {
       const f = rec.fields || {};
       return {
         id: rec.id,
-        slug: f.slug || f.Slug || f.slugify || '',
-        title: f.title || f.Title || '',
-        date: f.date || f.Date || '',
-        topic: f.topic || f.Topic || '',
+        slug: f.slug || f.Slug || f.slugify || "",
+        title: f.title || f.Title || "",
+        date: f.date || f.Date || "",
+        cluster: f.Cluster || f.Topic || f.Topics || f.Category || "",
+        abstract: f.Abstract || f["Article Abstract"] || "",
+        citation: f.Citation || f["Full Citation"] || "",
+        url: f.url || f.URL || f.Link || f.link || f.href || "", // external publisher/DOI page
       };
     });
 
-    return res.status(200).json({ items });
+    res.status(200).json({
+      items,
+      nextCursor: data.offset || null, // pass this back to clients for "Load more"
+    });
   } catch (e) {
-    return res.status(500).json({ error: 'Server error', detail: String(e).slice(0, 800) });
+    res.status(500).json({ error: "Server error", detail: String(e).slice(0, 800) });
   }
+}
+
+// Airtable formula escaping (very simple, enough for FIND/LOWER usage)
+function escapeFormula(s) {
+  return String(s).replace(/"/g, '\\"');
 }
