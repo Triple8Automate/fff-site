@@ -1,70 +1,86 @@
 // pages/api/archive.js
 export default async function handler(req, res) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
   try {
     const token  = process.env.AIRTABLE_TOKEN;
     const baseId = process.env.AIRTABLE_BASE_ID;
-    const table  = process.env.AIRTABLE_TABLE_NAME || "Articles";
+    const table  = process.env.AIRTABLE_ARTICLES_TABLE || "Articles";         // <— your table name
+    const view   = process.env.AIRTABLE_ARTICLES_VIEW  || undefined;          // optional
+
     if (!token || !baseId || !table) {
-      return res.status(500).json({ error: "Missing env" });
+      return res.status(500).json({ error: "Missing Airtable env vars" });
     }
 
-    const { q = "", cluster = "", cursor = "", limit = "50" } = req.query;
+    const { q = "", cluster = "", limit = "50", cursor = "" } = req.query;
 
-    const url = new URL(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`);
-    url.searchParams.set("pageSize", String(Math.min(parseInt(limit, 10) || 50, 100)));
-    if (cursor) url.searchParams.set("offset", cursor);
+    // Build filterByFormula: search in Title, FFF Summary 1..4, Article Abstract, Full Citation
+    const safe = (s) => String(s).replace(/"/g, '\\"');
+    const needles = q ? `"${safe(q)}"` : null;
 
-    const r = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    const j = await r.json();
+    const pieces = [];
+
+    if (needles) {
+      const searchable = [
+        "{Title}",
+        "{FFF Summary 1}",
+        "{FFF Summary 2}",
+        "{FFF Summary 3}",
+        "{FFF Summary 4}",
+        "{Article Abstract}",
+        "{Full Citation}",
+      ].map((f) => `FIND(${needles}, ${f})`);
+
+      // OR(FIND(q,field1), FIND(q,field2), ...)
+      pieces.push(`OR(${searchable.join(",")})`);
+    }
+
+    if (cluster) {
+      // single-select exact match
+      pieces.push(`{Cluster} = "${safe(cluster)}"`);
+    }
+
+    const filter = pieces.length ? `filterByFormula=${encodeURIComponent(`AND(${pieces.join(",")})`)}` : "";
+
+    const params = [
+      filter,
+      view ? `view=${encodeURIComponent(view)}` : "",
+      `pageSize=${encodeURIComponent(String(Math.min(Number(limit) || 50, 100)))}`,
+      cursor ? `offset=${encodeURIComponent(cursor)}` : "",
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?${params}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await r.json();
+
     if (!r.ok) {
-      return res.status(r.status).json({ error: "Airtable error", detail: j });
+      return res.status(r.status).json({ error: "Airtable error", detail: data });
     }
 
-    const items = (j.records || []).map((rec) => {
+    // Map Airtable records into list items
+    const items = (data.records || []).map((rec) => {
       const f = rec.fields || {};
-
-      // Collect FFF Summary 1..20 automatically (present & non-empty)
-      const summaries = [];
-      for (let i = 1; i <= 20; i++) {
-        const v = f[`FFF Summary ${i}`];
-        if (v && String(v).trim()) summaries.push(String(v));
-      }
-
       return {
         id: rec.id,
-        title: f.Title || "",
-        summaries, // <-- array of strings
-        abstract: f["Article Abstract"] || f.Abstract || "",
-        citation: f["Full Citation"] || f.Citation || "",
-        cluster: f.Cluster || f.cluster || "",
-        date: f.Date || f.Published || "",
+        title: f["Title"] || null,
+        date: f["Date"] || f["Published"] || null,
+        cluster: f["Cluster"] || null,
+        abstract: f["Article Abstract"] || null,
+        // summaries (short blurbs for preview if you want)
+        s1: f["FFF Summary 1"] || null,
+        s2: f["FFF Summary 2"] || null,
+        s3: f["FFF Summary 3"] || null,
+        s4: f["FFF Summary 4"] || null,
       };
     });
 
-    // Filtering
-    let out = items;
-    const qlc = String(q).trim().toLowerCase();
-    const cl  = String(cluster).trim();
-    if (qlc) {
-      out = out.filter((a) => {
-        const hay =
-          (a.title || "") +
-          " " +
-          (a.abstract || "") +
-          " " +
-          (a.citation || "") +
-          " " +
-          (a.summaries || []).join(" ");
-        return hay.toLowerCase().includes(qlc);
-      });
-    }
-    if (cl) out = out.filter((a) => String(a.cluster) === cl);
-
-    res.status(200).json({ items: out, nextCursor: j.offset || null });
+    res.status(200).json({
+      items,
+      nextCursor: data.offset || null,
+    });
   } catch (e) {
-    res.status(500).json({ error: "Server error", detail: String(e) });
+    res.status(500).json({ error: "Server error", detail: String(e).slice(0, 800) });
   }
 }
