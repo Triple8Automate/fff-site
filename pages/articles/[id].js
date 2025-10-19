@@ -4,7 +4,25 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 // pages/articles/[id].js  (and keep your existing logic)
 import "../../styles/article.css";
+// pages/articles/[id].js
+import { useEffect, useState } from "react";
+import "../../styles/article.css";
+import { getReadingList, isSaved, toggleSave } from "../../lib/readingList";
 
+export default function ArticleView({ article }) {
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { try { setSaved(isSaved(article.id)); } catch {} }, [article?.id]);
+
+  function onSave(){
+    const now = toggleSave({ id: article.id, title: article.title, cluster: article.cluster, date: article.date });
+    setSaved(now);
+  }
+
+  // ... render with a Save button:
+  // <button className={`btn ${saved ? "secondary" : ""}`} onClick={onSave}>
+  //   {saved ? "Saved ✓" : "Save to reading list"}
+  // </button>
+}
 
 export default function ArticleDetail() {
   const router = useRouter();
