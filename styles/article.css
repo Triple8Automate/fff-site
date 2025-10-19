@@ -1,0 +1,27 @@
+:root{
+  --bg:#0b0b0f; --panel:#0f1117; --ink:#e5e7eb; --muted:#9aa3b2; --accent:#a78bfa;
+  --ring:rgba(167,139,250,.35);
+}
+html,body{background:var(--bg); color:var(--ink)}
+.article-wrap{
+  max-width: clamp(720px, 72vw, 980px);
+  margin: 2.5rem auto; padding: 1.25rem;
+}
+.breadcrumb{font-size:.95rem; color:var(--muted)}
+.breadcrumb a{color:var(--accent); text-decoration:underline}
+h1{font-size: clamp(1.9rem, 2.6vw, 2.6rem); line-height:1.2; margin:.75rem 0 1.25rem}
+.meta{color:var(--muted); font-size:.95rem; display:flex; gap:.5rem; flex-wrap:wrap}
+.badge{display:inline-block; background:rgba(167,139,250,.12); color:#d9d6ff; border:1px solid rgba(167,139,250,.3);
+  padding:.2rem .55rem; border-radius:999px; font-size:.82rem; }
+.section{margin:1.75rem 0 1rem}
+.section h3{font-size:1.1rem; letter-spacing:.01em; color:#c7cffc; margin-bottom:.6rem}
+.panel{background:var(--panel); border:1px solid #1d2232; border-radius:12px; padding:1rem 1.1rem;}
+.panel p{margin:.6rem 0; line-height:1.72}
+.actions{display:flex; gap:.5rem; flex-wrap:wrap; margin:.75rem 0 2rem}
+.btn{background:linear-gradient(90deg,#a855f7,#3b82f6); border:none; color:white; border-radius:10px;
+  padding:.55rem .85rem; font-weight:600; cursor:pointer}
+.btn.secondary{background:#131827; color:#cbd5e1; border:1px solid #232a3d}
+.btn:focus{outline:2px solid var(--ring); outline-offset:2px}
+.small{font-size:.88rem; color:var(--muted)}
+hr.sep{border:none; height:1px; background:#1d2232; margin:1.5rem 0}
+blockquote{border-left:3px solid var(--accent); padding-left:.8rem; color:#d9d6ff; margin:.8rem 0}
