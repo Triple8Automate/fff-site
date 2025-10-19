@@ -19,7 +19,6 @@ export default function ArticlesGate() {
 
   const debounceRef = useRef(null);
 
-  // already unlocked?
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("fffEmail");
@@ -31,7 +30,7 @@ export default function ArticlesGate() {
     setChecked(true);
   }, []);
 
-  // load clusters once (after gate)
+  // load clusters after gate
   useEffect(() => {
     if (!granted) return;
     (async () => {
@@ -111,13 +110,11 @@ export default function ArticlesGate() {
   async function handleSubmit(e) {
     e.preventDefault();
     setSubErr("");
-
     const ok = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!ok) {
       setSubErr("Please enter a valid email.");
       return;
     }
-
     setLoadingSub(true);
     try {
       const source = getUTMSource();
@@ -137,7 +134,6 @@ export default function ArticlesGate() {
     }
   }
 
-  // Gate
   if (!granted) {
     return (
       <main style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:"2rem",background:"#000",color:"#fff",textAlign:"center"}}>
@@ -160,7 +156,6 @@ export default function ArticlesGate() {
     );
   }
 
-  // Unlocked list
   return (
     <main style={{ minHeight:"100vh", padding:"2rem 1rem", color:"#fff", background:"#0b0b0f" }}>
       <div style={{ maxWidth:1000, margin:"0 auto" }}>
@@ -174,7 +169,7 @@ export default function ArticlesGate() {
           <select value={cluster} onChange={(e)=>setCluster(e.target.value)}
             style={{ padding:"0.7rem 0.9rem", borderRadius:8, border:"1px solid #2a2a2a", background:"#0f0f14", color:"#fff" }}>
             <option value="">All clusters</option>
-            {(clusters.length ? clusters : []).map((c)=>(
+            {(clusters || []).map((c)=>(
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -186,18 +181,32 @@ export default function ArticlesGate() {
 
         <ul style={{ lineHeight:1.9, paddingLeft:0, listStyle:"none" }}>
           {items.map((a)=>(
-            <li key={a.id} style={{ marginBottom:6 }}>
+            <li key={a.id} style={{ marginBottom:12 }}>
               <a href={`/articles/${a.id}`} style={{ textDecoration:"underline", color:"#a5b4fc" }}>
                 {a.title || "Untitled"}
               </a>
               <span style={{ opacity:0.65 }}>
                 {a.date ? ` — ${a.date}` : ""} {a.cluster ? `· ${a.cluster}` : ""}
               </span>
-              {a.abstract ? (
-                <div style={{ opacity:0.7, fontSize:13, marginTop:2, maxWidth:900 }}>
+
+              {/* Show ALL summaries (truncated) if present */}
+              {(a.summaries || []).length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  {(a.summaries || []).map((s, i) => (
+                    <div key={i} style={{ opacity: 0.8, fontSize: 13, marginTop: 2, maxWidth: 900 }}>
+                      <strong>Summary {i + 1}:</strong>{" "}
+                      {s.length > 220 ? s.slice(0, 220) + "…" : s}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Fallback to abstract preview if no summaries */}
+              {!a.summaries?.length && a.abstract && (
+                <div style={{ opacity: 0.7, fontSize: 13, marginTop: 2, maxWidth: 900 }}>
                   {a.abstract.length > 220 ? a.abstract.slice(0,220) + "…" : a.abstract}
                 </div>
-              ) : null}
+              )}
             </li>
           ))}
         </ul>
