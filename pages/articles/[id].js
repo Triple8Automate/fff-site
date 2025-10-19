@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { getReadingList, isSaved, toggleSave } from "../../lib/readingList";
 
+export async function getServerSideProps() {
+  return { props: {} };
+}
+
 export default function ArticleDetail() {
   const router = useRouter();
   const { id } = router.query;

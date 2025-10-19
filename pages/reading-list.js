@@ -3,6 +3,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getReadingList, removeItem, clearReadingList } from "../lib/readingList";
 
+export async function getServerSideProps() {
+  return { props: {} };
+}
+
 export default function ReadingList() {
   const [items, setItems] = useState([]);
 

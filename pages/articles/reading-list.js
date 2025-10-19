@@ -1,6 +1,9 @@
 // pages/articles/reading-list.js
-import "../../styles/article.css";
 import { useEffect, useState } from "react";
+
+export async function getServerSideProps() {
+  return { props: {} };
+}
 
 export default function ReadingList(){
   const [items, setItems] = useState([]);

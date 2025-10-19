@@ -1,6 +1,10 @@
 // pages/articles/index.js
 import { useEffect, useRef, useState } from "react";
 
+export async function getServerSideProps() {
+  return { props: {} };
+}
+
 export default function ArticlesGate() {
   const [email, setEmail] = useState("");
   const [granted, setGranted] = useState(false);
