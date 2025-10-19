@@ -30,50 +30,75 @@ export default function ArticleDetail() {
   }, [id]);
 
   return (
-    <main style={{ minHeight:"100vh", padding:"2rem 1rem", color:"#fff", background:"#0b0b0f" }}>
-      <div style={{ maxWidth:900, margin:"0 auto" }}>
+    <main style={{ minHeight: "100vh", padding: "2rem 1rem", color: "#fff", background: "#0b0b0f" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
         <div style={{ marginBottom: 16 }}>
-          <Link href="/articles" style={{ color:"#a5b4fc", textDecoration:"underline" }}>← Back to archive</Link>
+          <Link href="/articles" style={{ color: "#a5b4fc", textDecoration: "underline" }}>
+            ← Back to archive
+          </Link>
         </div>
 
         {loading && <div>Loading…</div>}
-        {err && <div style={{ color:"#fca5a5" }}>{err}</div>}
+        {err && <div style={{ color: "#fca5a5" }}>{err}</div>}
 
         {item && !loading && !err && (
           <>
+            {/* Title */}
             <h1 style={{ marginBottom: 8 }}>{item.title || "Untitled"}</h1>
-            <div style={{ opacity:0.7, marginBottom:16 }}>
-              {item.date ? item.date : null} {item.cluster ? ` · ${item.cluster}` : ""}
+
+            {/* Cluster / meta line */}
+            <div style={{ opacity: 0.75, marginBottom: 20 }}>
+              {item.cluster ? item.cluster : null}
+              {item.date ? (item.cluster ? ` · ${item.date}` : item.date) : ""}
             </div>
 
-            {/* Summaries (show whatever exists, in order) */}
-            {[item.s1, item.s2, item.s3, item.s4].filter(Boolean).length > 0 && (
-              <section style={{ margin:"20px 0" }}>
-                <h3 style={{ marginBottom: 8 }}>Key takeaways</h3>
-                <ul style={{ lineHeight:1.7, paddingLeft: "1.1rem" }}>
-                  {[item.s1, item.s2, item.s3, item.s4].filter(Boolean).map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
+            {/* Abstract */}
             {item.abstract && (
-              <section style={{ margin:"20px 0" }}>
-                <h3 style={{ marginBottom: 8 }}>Abstract</h3>
-                <p style={{ opacity:0.9, lineHeight:1.7 }}>{item.abstract}</p>
-              </section>
+              <Section title="Abstract">
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.abstract}</div>
+              </Section>
             )}
 
+            {/* FFF Summaries 1–4 */}
+            {item.s1 && (
+              <Section title="FFF Summary 1">
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s1}</div>
+              </Section>
+            )}
+            {item.s2 && (
+              <Section title="FFF Summary 2">
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s2}</div>
+              </Section>
+            )}
+            {item.s3 && (
+              <Section title="FFF Summary 3">
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s3}</div>
+              </Section>
+            )}
+            {item.s4 && (
+              <Section title="FFF Summary 4">
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.s4}</div>
+              </Section>
+            )}
+
+            {/* Full citation */}
             {item.citation && (
-              <section style={{ margin:"20px 0" }}>
-                <h3 style={{ marginBottom: 8 }}>Full citation</h3>
-                <p style={{ opacity:0.9, lineHeight:1.7 }}>{item.citation}</p>
-              </section>
+              <Section title="Full citation">
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{item.citation}</div>
+              </Section>
             )}
           </>
         )}
       </div>
     </main>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <section style={{ margin: "22px 0" }}>
+      <h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>{title}</h3>
+      <div style={{ opacity: 0.95 }}>{children}</div>
+    </section>
   );
 }
