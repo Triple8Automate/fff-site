@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const table  = process.env.AIRTABLE_ARTICLES_TABLE || process.env.AIRTABLE_TABLE_NAME || "Articles";
   if (!token || !baseId || !table) return res.status(500).json({ error: "Missing Airtable env vars" });
 
-  const F_CLUSTER1 = "cluster";
+  const F_CLUSTER1 = "Clusters";
   const F_CLUSTER2 = "Cluster";
 
   const seen = new Set();

@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 
     if (cluster) {
       // single-select exact match
-      pieces.push(`{Cluster} = "${safe(cluster)}"`);
+      pieces.push(`{Clusters} = "${safe(cluster)}"`);
     }
 
     const filter = pieces.length ? `filterByFormula=${encodeURIComponent(`AND(${pieces.join(",")})`)}` : "";
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         id: rec.id,
         title: f["Title"] || null,
         date: f["Date"] || f["Published"] || null,
-        cluster: f["Cluster"] || null,
+        cluster: f["Clusters"] || null,
         abstract: f["Article Abstract"] || null,
         // summaries (short blurbs for preview if you want)
         s1: f["FFF Summary 1"] || null,
